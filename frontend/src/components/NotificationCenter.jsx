@@ -1,3 +1,4 @@
+// frontend/src/components/NotificationCenter.jsx
 import React, { useState, useEffect } from 'react';
 import { 
   BellIcon, 
@@ -7,21 +8,27 @@ import {
   XMarkIcon
 } from '@heroicons/react/24/outline';
 import { BellIcon as BellIconSolid } from '@heroicons/react/24/solid';
-import api from '../api/config';
+import api from '../api/config'; // Re-enable API import
 
 export default function NotificationCenter() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
 
+  // Re-enable API calls now that backend is ready
   useEffect(() => {
     fetchNotifications();
+    fetchUnreadCount();
+    
     // Set up polling for new notifications
-    const interval = setInterval(fetchNotifications, 30000); // Check every 30s
+    const interval = setInterval(() => {
+      fetchUnreadCount();
+    }, 30000); // Check every 30s
+    
     return () => clearInterval(interval);
   }, []);
 
+  // Now enabled - will work with the backend
   const fetchNotifications = async () => {
     try {
       const response = await api.get('/api/notifications');
@@ -29,6 +36,15 @@ export default function NotificationCenter() {
       setUnreadCount(response.data.unreadCount || 0);
     } catch (err) {
       console.error('Error fetching notifications:', err);
+    }
+  };
+
+  const fetchUnreadCount = async () => {
+    try {
+      const response = await api.get('/api/notifications/unread-count');
+      setUnreadCount(response.data.unreadCount || 0);
+    } catch (err) {
+      console.error('Error fetching unread count:', err);
     }
   };
 
@@ -168,6 +184,7 @@ export default function NotificationCenter() {
                 <div className="p-8 text-center text-gray-500">
                   <BellIcon className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                   <p>No notifications yet</p>
+                  <p className="text-xs mt-1">You'll see notifications here when people interact with your content</p>
                 </div>
               )}
             </div>

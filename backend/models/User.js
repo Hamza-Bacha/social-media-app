@@ -56,15 +56,17 @@ const userSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Update followers and following counts when arrays change
+// Update followers and following counts
 userSchema.pre('save', function(next) {
   this.followersCount = this.followers.length;
   this.followingCount = this.following.length;
   next();
 });
 
-// Index for better performance
+// Indexes
 userSchema.index({ username: 1 });
 userSchema.index({ email: 1 });
 
-export default mongoose.model('User', userSchema);
+const User = mongoose.models.User || mongoose.model('User', userSchema);
+
+export default User;

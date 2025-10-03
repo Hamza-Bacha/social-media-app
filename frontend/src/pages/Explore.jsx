@@ -8,20 +8,21 @@ import {
 } from "@heroicons/react/24/outline";
 import api from "../api/config";
 import LoadingSpinner from "../components/LoadingSpinner";
+import { useAuth } from "../context/AuthContext";
 
 export default function Explore() {
+  const { token, user: currentUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("people");
+  const [followLoadingIds, setFollowLoadingIds] = useState(new Set());
 
   useEffect(() => {
-    // Load initial users when component mounts
     fetchUsers();
   }, []);
 
   useEffect(() => {
-    // Debounce search
     const timer = setTimeout(() => {
       if (searchQuery) {
         searchUsers();
@@ -36,10 +37,12 @@ export default function Explore() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const response = await api.get("/api/users");
+      const response = await api.get("/api/users", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setUsers(response.data.users || []);
     } catch (err) {
-      console.error("Error fetching users:", err);
+      console.error("Error fetching users:", err.response?.data || err.message);
     } finally {
       setLoading(false);
     }
@@ -48,25 +51,62 @@ export default function Explore() {
   const searchUsers = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/api/users?search=${encodeURIComponent(searchQuery)}`);
+      const response = await api.get(`/api/users?search=${encodeURIComponent(searchQuery)}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setUsers(response.data.users || []);
     } catch (err) {
-      console.error("Error searching users:", err);
+      console.error("Error searching users:", err.response?.data || err.message);
     } finally {
       setLoading(false);
     }
   };
 
   const handleFollow = async (userId) => {
+    if (!token) {
+      alert("Please login to follow users");
+      return;
+    }
+
+    // Prevent multiple clicks
+    setFollowLoadingIds(prev => new Set(prev.add(userId)));
+
     try {
-      const response = await api.post(`/api/users/${userId}/follow`);
-      setUsers(prev => prev.map(user => 
-        user._id === userId 
-          ? { ...user, isFollowing: response.data.isFollowing }
-          : user
-      ));
+      // Optimistic UI update
+      setUsers(prev =>
+        prev.map(user =>
+          user._id === userId ? { ...user, isFollowing: !user.isFollowing } : user
+        )
+      );
+
+      const response = await api.post(
+        `/api/users/${userId}/follow`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      // Confirm backend response
+      setUsers(prev =>
+        prev.map(user =>
+          user._id === userId ? { ...user, isFollowing: response.data.isFollowing } : user
+        )
+      );
     } catch (err) {
-      console.error("Error following user:", err);
+      console.error("Error following user:", err.response?.data || err.message);
+      alert(err.response?.data?.message || "Failed to follow user");
+
+      // Revert UI if API failed
+      setUsers(prev =>
+        prev.map(user =>
+          user._id === userId ? { ...user, isFollowing: !user.isFollowing } : user
+        )
+      );
+    } finally {
+      setFollowLoadingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(userId);
+        return newSet;
+      });
     }
   };
 
@@ -162,14 +202,15 @@ export default function Explore() {
                     </div>
                     
                     {/* Follow Button */}
-                    {!user.isOwnProfile && (
+                    {!user._id === currentUser?._id && (
                       <button
                         onClick={() => handleFollow(user._id)}
+                        disabled={followLoadingIds.has(user._id)}
                         className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                           user.isFollowing
                             ? "bg-gray-200 text-gray-800 hover:bg-gray-300"
                             : "bg-blue-500 text-white hover:bg-blue-600"
-                        }`}
+                        } ${followLoadingIds.has(user._id) ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
                         <div className="flex items-center gap-1">
                           <UserPlusIcon className="w-4 h-4" />

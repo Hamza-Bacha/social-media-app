@@ -14,12 +14,10 @@ export default function CreatePost({ onPostCreated }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     if (!content.trim() && !selectedImage) {
       setError("Please add some content or an image");
       return;
     }
-
     if (content.length > 500) {
       setError("Content must be less than 500 characters");
       return;
@@ -29,36 +27,27 @@ export default function CreatePost({ onPostCreated }) {
     setError("");
 
     try {
-      // If there's an image, we need to upload it first
       let imageUrl = null;
-      
+
+      // Upload image if selected
       if (selectedImage) {
         const formData = new FormData();
-        formData.append('image', selectedImage.file);
-        
-        // Upload image
-        try {
-          const imageResponse = await api.post("/api/upload/image", formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data'
-            }
-          });
-          imageUrl = imageResponse.data.imageUrl;
-        } catch (imgErr) {
-          console.error("Image upload failed:", imgErr);
-          setError("Failed to upload image. Posting without image.");
-        }
+        formData.append("image", selectedImage.file);
+        const imageResponse = await api.post("/api/upload/image", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        imageUrl = imageResponse.data.imageUrl;
       }
 
-      const response = await api.post("/api/posts", { 
+      // Create post with proper type
+      const response = await api.post("/api/posts", {
         content: content.trim(),
-        image: imageUrl
+        image: imageUrl,
+        type: selectedImage ? "image" : "text",
       });
-      
-      if (onPostCreated) {
-        onPostCreated(response.data.post);
-      }
-      
+
+      if (onPostCreated) onPostCreated(response.data.post);
+
       // Reset form
       setContent("");
       setSelectedImage(null);
@@ -72,26 +61,18 @@ export default function CreatePost({ onPostCreated }) {
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      handleSubmit(e);
-    }
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleSubmit(e);
   };
 
   const handleImageSelect = (imageData) => {
-    console.log('Image selected:', imageData.name);
     setSelectedImage(imageData);
     setShowImageUpload(false);
   };
 
-  const handleImageRemove = () => {
-    console.log('Image removed');
-    setSelectedImage(null);
-  };
+  const handleImageRemove = () => setSelectedImage(null);
 
   const handlePhotoClick = (e) => {
     e.preventDefault();
-    e.stopPropagation();
-    console.log('Photo button clicked, current showImageUpload:', showImageUpload);
     setShowImageUpload(true);
   };
 
@@ -105,7 +86,7 @@ export default function CreatePost({ onPostCreated }) {
               {user?.username?.charAt(0).toUpperCase() || "U"}
             </div>
           </div>
-          
+
           {/* Post Form */}
           <form onSubmit={handleSubmit} className="flex-1">
             <textarea
@@ -118,13 +99,10 @@ export default function CreatePost({ onPostCreated }) {
               disabled={isSubmitting}
               maxLength={500}
             />
-            
+
             {/* Image Upload Section */}
             {(showImageUpload || selectedImage) && (
               <div className="mt-3">
-                <div className="text-xs text-gray-500 mb-2">
-                  Image Upload Section (Debug: showImageUpload={showImageUpload.toString()})
-                </div>
                 <ImageUpload
                   onImageSelect={handleImageSelect}
                   onImageRemove={handleImageRemove}
@@ -132,11 +110,9 @@ export default function CreatePost({ onPostCreated }) {
                 />
               </div>
             )}
-            
-            {error && (
-              <p className="text-red-500 text-sm mt-2">{error}</p>
-            )}
-            
+
+            {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+
             <div className="flex justify-between items-center mt-3">
               <div className="flex items-center gap-4">
                 {/* Image Upload Button */}
@@ -146,11 +122,7 @@ export default function CreatePost({ onPostCreated }) {
                     <span className="text-sm">Image added</span>
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleImageRemove();
-                        setShowImageUpload(false);
-                      }}
+                      onClick={handleImageRemove}
                       className="ml-1 hover:bg-red-100 rounded-full p-1 transition-colors"
                       title="Remove image"
                     >
@@ -169,25 +141,27 @@ export default function CreatePost({ onPostCreated }) {
                     <span className="text-sm">Photo</span>
                   </button>
                 )}
-                
-                <span className={`text-xs ${
-                  content.length > 450 
-                    ? 'text-red-500' 
-                    : content.length > 400 
-                    ? 'text-yellow-500' 
-                    : 'text-gray-400'
-                }`}>
+
+                <span
+                  className={`text-xs ${
+                    content.length > 450
+                      ? "text-red-500"
+                      : content.length > 400
+                      ? "text-yellow-500"
+                      : "text-gray-400"
+                  }`}
+                >
                   {content.length}/500
                 </span>
               </div>
-              
+
               <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-400">
-                  Ctrl+Enter to post
-                </span>
+                <span className="text-xs text-gray-400">Ctrl+Enter to post</span>
                 <button
                   type="submit"
-                  disabled={isSubmitting || (!content.trim() && !selectedImage) || content.length > 500}
+                  disabled={
+                    isSubmitting || (!content.trim() && !selectedImage) || content.length > 500
+                  }
                   className={`px-6 py-2 rounded-full font-medium transition-colors ${
                     isSubmitting || (!content.trim() && !selectedImage) || content.length > 500
                       ? "bg-gray-300 text-gray-500 cursor-not-allowed"

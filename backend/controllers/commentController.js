@@ -1,5 +1,6 @@
 import Comment from "../models/Comment.js";
 import Post from "../models/Post.js";
+import { createNotification } from "./notificationController.js"; // Add notification support
 
 // Get comments for a specific post
 export const getComments = async (req, res) => {
@@ -61,8 +62,8 @@ export const createComment = async (req, res) => {
       return res.status(401).json({ message: "Not authenticated" });
     }
     
-    // Verify post exists
-    const post = await Post.findById(postId);
+    // Verify post exists and get post owner info
+    const post = await Post.findById(postId).populate('user', 'username');
     if (!post) {
       return res.status(404).json({ message: "Post not found" });
     }
@@ -79,6 +80,15 @@ export const createComment = async (req, res) => {
     // Update post's comments count
     await Post.findByIdAndUpdate(postId, {
       $inc: { commentsCount: 1 }
+    });
+    
+    // Create notification for post owner
+    await createNotification({
+      recipient: post.user._id,
+      sender: req.user._id,
+      type: 'comment',
+      relatedPost: postId,
+      relatedComment: savedComment._id
     });
     
     // Add user-specific data
@@ -103,7 +113,7 @@ export const likeComment = async (req, res) => {
     const { commentId } = req.params;
     const userId = req.user._id;
     
-    const comment = await Comment.findById(commentId);
+    const comment = await Comment.findById(commentId).populate('user', 'username');
     if (!comment) {
       return res.status(404).json({ message: "Comment not found" });
     }
@@ -116,6 +126,16 @@ export const likeComment = async (req, res) => {
     } else {
       // Like
       comment.likes.push(userId);
+      
+      // Create notification for comment owner (if not liking own comment)
+      if (comment.user._id.toString() !== userId.toString()) {
+        await createNotification({
+          recipient: comment.user._id,
+          sender: userId,
+          type: 'like',
+          relatedComment: commentId
+        });
+      }
     }
     
     await comment.save();

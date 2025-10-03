@@ -1,5 +1,6 @@
 import User from "../models/User.js";
 import Post from "../models/Post.js";
+import { createNotification } from "./notificationController.js"; // Add notification support
 
 // Get all users (for search/discovery)
 export const getUsers = async (req, res) => {
@@ -90,7 +91,7 @@ export const followUser = async (req, res) => {
       return res.status(400).json({ message: "You cannot follow yourself" });
     }
     
-    const userToFollow = await User.findById(userId);
+    const userToFollow = await User.findById(userId).select('username');
     if (!userToFollow) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -110,6 +111,13 @@ export const followUser = async (req, res) => {
       // Follow
       currentUser.following.push(userId);
       userToFollow.followers.push(currentUserId);
+      
+      // Create follow notification
+      await createNotification({
+        recipient: userId,
+        sender: currentUserId,
+        type: 'follow'
+      });
     }
     
     await Promise.all([currentUser.save(), userToFollow.save()]);

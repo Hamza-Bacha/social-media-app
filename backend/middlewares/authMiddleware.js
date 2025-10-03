@@ -1,66 +1,48 @@
-import jwt from "jsonwebtoken";
-import User from "../models/User.js";
+// backend/middlewares/authMiddleware.js
+import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 
+// Standard authentication middleware
 export const authenticate = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ 
-        message: "Access denied. No token provided or invalid format." 
-      });
-    }
-    
-    const token = authHeader.split(" ")[1];
-    
+    const token = req.headers.authorization?.replace('Bearer ', '');
+
     if (!token) {
-      return res.status(401).json({ message: "Access denied. Token missing." });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
-    // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // Find user
     const user = await User.findById(decoded.id).select('-password');
+
     if (!user) {
-      return res.status(401).json({ message: "User not found. Token invalid." });
+      return res.status(401).json({ message: 'User not found' });
     }
-    
-    // Attach user to request
+
     req.user = user;
     next();
-    
   } catch (err) {
-    console.error("Authentication error:", err);
-    
-    if (err.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: "Invalid token." });
-    }
-    
-    if (err.name === 'TokenExpiredError') {
-      return res.status(401).json({ message: "Token expired." });
-    }
-    
-    return res.status(500).json({ message: "Authentication failed." });
+    console.error('Authentication error:', err);
+    return res.status(401).json({ message: 'Invalid or expired token' });
   }
 };
 
-// Optional authentication (for public routes that can work with or without auth)
+// Optional authentication middleware (doesn't fail if no token)
 export const optionalAuth = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.split(" ")[1];
+    const token = req.headers.authorization?.replace('Bearer ', '');
+
+    if (token) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const user = await User.findById(decoded.id).select('-password');
-      req.user = user;
+      
+      if (user) {
+        req.user = user;
+      }
     }
     
     next();
   } catch (err) {
-    // If token is invalid, continue without user
-    req.user = null;
+    // Don't fail, just continue without authentication
     next();
   }
 };

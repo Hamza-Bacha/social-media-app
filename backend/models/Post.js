@@ -3,7 +3,10 @@ import mongoose from 'mongoose';
 const postSchema = new mongoose.Schema({
   content: { 
     type: String, 
-    required: true,
+    // Make content required only if no image is present
+    required: function() {
+      return !this.image; // Content required only when there's no image
+    },
     trim: true,
     maxlength: 500
   },
@@ -32,6 +35,14 @@ const postSchema = new mongoose.Schema({
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
+});
+
+// Custom validation to ensure at least content OR image exists
+postSchema.pre('validate', function(next) {
+  if (!this.content && !this.image) {
+    this.invalidate('content', 'Either content or image must be provided');
+  }
+  next();
 });
 
 // Virtual for comments

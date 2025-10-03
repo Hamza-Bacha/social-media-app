@@ -1,6 +1,7 @@
 import Post from "../models/Post.js";
 import User from "../models/User.js";
 import Comment from "../models/Comment.js";
+import { createNotification } from "./notificationController.js"; // Add this import
 
 // Get all posts (with optional user filtering)
 export const getPosts = async (req, res) => {
@@ -74,11 +75,15 @@ export const createPost = async (req, res) => {
   try {
     const { content, image } = req.body;
 
-    if (!content || content.trim().length === 0) {
-      return res.status(400).json({ message: "Content is required" });
+    // Trim content if it exists
+    const trimmedContent = content ? content.trim() : '';
+    
+    // Validate: must have either content OR image (or both)
+    if (!trimmedContent && !image) {
+      return res.status(400).json({ message: "Please add some content or an image" });
     }
 
-    if (content.length > 500) {
+    if (trimmedContent && trimmedContent.length > 500) {
       return res.status(400).json({ message: "Content must be less than 500 characters" });
     }
 
@@ -86,12 +91,18 @@ export const createPost = async (req, res) => {
       return res.status(401).json({ message: "Not authenticated" });
     }
 
-    const post = new Post({
-      content: content.trim(),
+    // Create post data
+    const postData = {
       user: req.user._id,
       image: image || null
-    });
+    };
 
+    // Only add content if it's not empty (model handles the validation)
+    if (trimmedContent) {
+      postData.content = trimmedContent;
+    }
+
+    const post = new Post(postData);
     const savedPost = await post.save();
     await savedPost.populate("user", "username avatar bio");
 
@@ -117,7 +128,7 @@ export const likePost = async (req, res) => {
     const { postId } = req.params;
     const userId = req.user._id;
 
-    const post = await Post.findById(postId);
+    const post = await Post.findById(postId).populate('user', 'username');
     if (!post) {
       return res.status(404).json({ message: "Post not found" });
     }
@@ -132,6 +143,14 @@ export const likePost = async (req, res) => {
     } else {
       // Like - add user to likes array
       post.likes.push(userId);
+      
+      // Create notification for post owner
+      await createNotification({
+        recipient: post.user._id,
+        sender: userId,
+        type: 'like',
+        relatedPost: postId
+      });
     }
 
     await post.save();
